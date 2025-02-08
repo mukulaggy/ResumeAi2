@@ -22,7 +22,7 @@ const RecruiterLogin = () => {
 
     try {
       const response = await axios.post(
-        "http://localhost:3000/api/auth/login",
+        "https://resumeai-h4y7.onrender.com/api/auth/login",
         formData
       );
       const { token } = response.data;

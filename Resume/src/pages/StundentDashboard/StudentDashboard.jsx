@@ -24,7 +24,7 @@ const StudentDashboard = () => {
 
       try {
         const response = await fetch(
-          "http://localhost:3000/api/upload-resume",
+          "https://resumeai-h4y7.onrender.com/api/upload-resume",
           {
             method: "POST",
             body: formData,
@@ -59,7 +59,7 @@ const StudentDashboard = () => {
     setError("");
 
     try {
-      const response = await fetch("http://localhost:3000/api/analyze-resume", {
+      const response = await fetch("https://resumeai-h4y7.onrender.com/api/analyze-resume", {
         method: "POST",
         body: JSON.stringify({
           resumeText: resume.text,
@@ -96,7 +96,7 @@ const StudentDashboard = () => {
 
     try {
       const response = await fetch(
-        "http://localhost:3000/api/tell-about-resume",
+        "https://resumeai-h4y7.onrender.com/api/tell-about-resume",
         {
           method: "POST",
           body: JSON.stringify({
@@ -136,7 +136,7 @@ const StudentDashboard = () => {
     setError("");
 
     try {
-      const response = await fetch("http://localhost:3000/api/improve-skills", {
+      const response = await fetch("https://resumeai-h4y7.onrender.com/api/improve-skills", {
         method: "POST",
         body: JSON.stringify({
           resumeText: resume.text,
@@ -180,7 +180,7 @@ const StudentDashboard = () => {
 
     try {
       const response = await fetch(
-        "http://localhost:3000/api/missing-keywords",
+        "https://resumeai-h4y7.onrender.com/api/missing-keywords",
         {
           method: "POST",
           body: JSON.stringify({

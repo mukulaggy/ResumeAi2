@@ -19,7 +19,7 @@ const RecruiterDashboard = () => {
       try {
         const token = localStorage.getItem("token");
         const response = await axios.get(
-          "http://localhost:3000/api/recruiter/dashboard",
+          "https://resumeai-h4y7.onrender.com/api/recruiter/dashboard",
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -44,7 +44,7 @@ const RecruiterDashboard = () => {
       try {
         const token = localStorage.getItem("token");
         const response = await axios.post(
-          "http://localhost:3000/api/recruiter/upload-resumes",
+          "https://resumeai-h4y7.onrender.com/api/recruiter/upload-resumes",
           formData,
           {
             headers: { Authorization: `Bearer ${token}` },
@@ -71,7 +71,7 @@ const RecruiterDashboard = () => {
     try {
       const token = localStorage.getItem("token");
       const response = await axios.post(
-        "http://localhost:3000/api/recruiter/analyze-resumes",
+        "https://resumeai-h4y7.onrender.com/api/recruiter/analyze-resumes",
         { resumes, jobDescription },
         { headers: { Authorization: `Bearer ${token}` } }
       );

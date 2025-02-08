@@ -24,7 +24,7 @@ const RecruiterRegistration = () => {
     setError("");
 
     try {
-      await axios.post("http://localhost:3000/api/auth/register", formData);
+      await axios.post("https://resumeai-h4y7.onrender.com/api/auth/register", formData);
       navigate("/recruiter-login");
     } catch (err) {
       setError(
