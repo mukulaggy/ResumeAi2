@@ -17,7 +17,6 @@ import StudentDashboard from "./pages/StundentDashboard/StudentDashboard";
 import RecruiterDashboard from "./pages/RecruiterDashboard/RecruiterDashboard";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-console.log("Clerk Key:", clerkPubKey);
 
 function App() {
   return (
