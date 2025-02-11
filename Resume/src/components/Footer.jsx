@@ -35,7 +35,7 @@ const Footer = () => {
 
         <div className="border-t border-neutral-800 mt-12 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center">
-            <p className="text-neutral-400 text-sm">© 2024 Resume Analyzer. All rights reserved.</p>
+            <p className="text-neutral-400 text-sm">© Developed By Mukul Agrawal. All rights reserved.</p>
             <div className="mt-4 md:mt-0">
               <ul className="flex space-x-6">
                 <li>
