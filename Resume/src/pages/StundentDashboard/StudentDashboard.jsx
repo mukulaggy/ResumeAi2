@@ -59,16 +59,19 @@ const StudentDashboard = () => {
     setError("");
 
     try {
-      const response = await fetch("https://resumeai-h4y7.onrender.com/api/analyze-resume", {
-        method: "POST",
-        body: JSON.stringify({
-          resumeText: resume.text,
-          jobDescription,
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const response = await fetch(
+        "https://resumeai-h4y7.onrender.com/api/analyze-resume",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            resumeText: resume.text,
+            jobDescription,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (!response.ok) {
         throw new Error("Failed to analyze resume");
@@ -136,16 +139,19 @@ const StudentDashboard = () => {
     setError("");
 
     try {
-      const response = await fetch("https://resumeai-h4y7.onrender.com/api/improve-skills", {
-        method: "POST",
-        body: JSON.stringify({
-          resumeText: resume.text,
-          jobDescription,
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const response = await fetch(
+        "https://resumeai-h4y7.onrender.com/api/improve-skills",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            resumeText: resume.text,
+            jobDescription,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (!response.ok) {
         throw new Error("Failed to get skill improvement suggestions");
@@ -260,6 +266,16 @@ const StudentDashboard = () => {
               className="text-white w-full border border-white p-5 rounded-md bg-black"
               disabled={loading}
             />
+            {loading && !resume.text && (
+              <div className="flex items-center mt-2 text-blue-400">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ repeat: Infinity, duration: 1 }}
+                  className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full mr-2"
+                />
+                Parsing your resume...
+              </div>
+            )}
             {resume.file && (
               <p className="text-sm mt-2">{resume.file.name} uploaded</p>
             )}
