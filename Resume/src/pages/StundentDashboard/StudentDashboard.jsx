@@ -2,9 +2,15 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Confetti from "react-confetti";
 
+// Helper function to count words
+const countWords = (text) => {
+  return text.trim().split(/\s+/).filter((word) => word !== "").length;
+};
+
 const StudentDashboard = () => {
   const [resume, setResume] = useState({ file: null, text: "" });
   const [jobDescription, setJobDescription] = useState("");
+  const [jobDescriptionWordCount, setJobDescriptionWordCount] = useState(0);
   const [analyzeResults, setAnalyzeResults] = useState(null);
   const [tellAboutResumeResults, setTellAboutResumeResults] = useState(null);
   const [missingKeywordsResults, setMissingKeywordsResults] = useState(null);
@@ -46,12 +52,25 @@ const StudentDashboard = () => {
   };
 
   const handleJobDescriptionChange = (event) => {
-    setJobDescription(event.target.value);
+    const text = event.target.value;
+    setJobDescription(text);
+    const wordCount = countWords(text);
+    setJobDescriptionWordCount(wordCount);
   };
 
   const analyzeResume = async () => {
-    if (!resume.text || !jobDescription) {
-      setError("Please upload a resume and provide a job description.");
+    if (!resume.text) {
+      setError("Please upload a resume.");
+      return;
+    }
+
+    if (!jobDescription) {
+      setError("Please provide a job description.");
+      return;
+    }
+
+    if (jobDescriptionWordCount < 50) {
+      setError("Job description must be at least 50 words. Please provide a more detailed job description.");
       return;
     }
 
@@ -130,8 +149,18 @@ const StudentDashboard = () => {
   };
 
   const improveSkills = async () => {
-    if (!resume.text || !jobDescription) {
-      setError("Please upload a resume and provide a job description.");
+    if (!resume.text) {
+      setError("Please upload a resume.");
+      return;
+    }
+
+    if (!jobDescription) {
+      setError("Please provide a job description.");
+      return;
+    }
+
+    if (jobDescriptionWordCount < 50) {
+      setError("Job description must be at least 50 words. Please provide a more detailed job description.");
       return;
     }
 
@@ -167,17 +196,25 @@ const StudentDashboard = () => {
               .filter((line) => line.trim() !== "")
       );
     } catch (error) {
-      setError(
-        "Failed to get skill improvement suggestions. Please try again."
-      );
+      setError("Failed to get skill improvement suggestions. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   const missingKeywords = async () => {
-    if (!resume.text || !jobDescription) {
-      setError("Please upload a resume and provide a job description.");
+    if (!resume.text) {
+      setError("Please upload a resume.");
+      return;
+    }
+
+    if (!jobDescription) {
+      setError("Please provide a job description.");
+      return;
+    }
+
+    if (jobDescriptionWordCount < 50) {
+      setError("Job description must be at least 50 words. Please provide a more detailed job description.");
       return;
     }
 
@@ -296,6 +333,9 @@ const StudentDashboard = () => {
               className="text-white w-full p-2 border border-white rounded-md bg-black focus:outline-none focus:ring-2 focus:ring-white"
               disabled={loading}
             />
+            <p className="text-sm mt-2 text-gray-400">
+              More than 50 words required.
+            </p>
           </motion.div>
         </div>
 
@@ -304,7 +344,7 @@ const StudentDashboard = () => {
         <div className="flex flex-wrap gap-4 mb-8">
           <Button
             onClick={analyzeResume}
-            disabled={!resume.text || !jobDescription || loading}
+            disabled={!resume.text || jobDescriptionWordCount < 50 || loading}
           >
             {loading ? "Analyzing..." : "Analyze Resume"}
           </Button>
@@ -313,13 +353,13 @@ const StudentDashboard = () => {
           </Button>
           <Button
             onClick={improveSkills}
-            disabled={!resume.text || !jobDescription || loading}
+            disabled={!resume.text || jobDescriptionWordCount < 50 || loading}
           >
             How Can I Improve My Skills
           </Button>
           <Button
             onClick={missingKeywords}
-            disabled={!resume.text || !jobDescription || loading}
+            disabled={!resume.text || jobDescriptionWordCount < 50 || loading}
           >
             The Keywords Missing
           </Button>
