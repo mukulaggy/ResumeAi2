@@ -8,12 +8,16 @@ const RecruiterDashboard = () => {
   const navigate = useNavigate();
   const [resumes, setResumes] = useState([]);
   const [jobDescription, setJobDescription] = useState("");
+  const [jobDescriptionWordCount, setJobDescriptionWordCount] = useState(0);
   const [analyzeResults, setAnalyzeResults] = useState(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [shortlistedResumes, setShortlistedResumes] = useState([]);
   const [showShortlisted, setShowShortlisted] = useState(false);
   const [recruiterData, setRecruiterData] = useState(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false); // New state for loader
 
+  // Fetch recruiter data on component mount
   useEffect(() => {
     const fetchRecruiterData = async () => {
       try {
@@ -35,13 +39,27 @@ const RecruiterDashboard = () => {
     fetchRecruiterData();
   }, [navigate]);
 
+  // Handle resume upload
   const handleResumeUpload = async (event) => {
     if (event.target.files) {
       const files = Array.from(event.target.files);
+
+      // Validate file type
+      const invalidFiles = files.filter(
+        (file) => file.type !== "application/pdf" && !file.name.endsWith(".pdf")
+      );
+      if (invalidFiles.length > 0) {
+        setError("Please upload only PDF files.");
+        return;
+      }
+
       const formData = new FormData();
       files.forEach((file) => formData.append("resumes", file));
 
       try {
+        setLoading(true); // Start loading
+        setError("");
+
         const token = localStorage.getItem("token");
         const response = await axios.post(
           "https://resumeai-h4y7.onrender.com/api/recruiter/upload-resumes",
@@ -51,23 +69,58 @@ const RecruiterDashboard = () => {
           }
         );
 
-        // Append new resumes to the existing resumes state
-        setResumes((prevResumes) => [...prevResumes, ...response.data.data]);
+        // Validate if uploaded files are resumes
+        const uploadedResumes = response.data.data;
+        const resumePatterns = [
+          /experience/i,
+          /education/i,
+          /skills/i,
+          /projects/i,
+          /certifications/i,
+          /summary/i,
+          /objective/i,
+          /work\s*history/i,
+          /professional\s*experience/i,
+        ];
+
+        const validResumes = uploadedResumes.filter((resume) =>
+          resumePatterns.some((pattern) => pattern.test(resume.text))
+        );
+
+        if (validResumes.length < uploadedResumes.length) {
+          setError("Some uploaded files do not appear to be resumes.");
+        }
+
+        setResumes((prevResumes) => [...prevResumes, ...validResumes]);
       } catch (error) {
         console.error("Error uploading resumes:", error);
+        setError("Failed to upload resumes. Please try again.");
+      } finally {
+        setLoading(false); // Stop loading
       }
     }
   };
 
-  const handleRemoveResume = (index) => {
-    setResumes((prevResumes) => prevResumes.filter((_, i) => i !== index));
-  };
-
+  // Handle job description change
   const handleJobDescriptionChange = (event) => {
-    setJobDescription(event.target.value);
+    const text = event.target.value;
+    setJobDescription(text);
+    const wordCount = text.trim().split(/\s+/).filter((word) => word !== "").length;
+    setJobDescriptionWordCount(wordCount);
   };
 
+  // Analyze resumes
   const analyzeResumes = async () => {
+    if (resumes.length === 0) {
+      setError("Please upload at least one resume.");
+      return;
+    }
+
+    if (jobDescriptionWordCount < 50) {
+      setError("Job description must be at least 50 words.");
+      return;
+    }
+
     try {
       const token = localStorage.getItem("token");
       const response = await axios.post(
@@ -75,8 +128,6 @@ const RecruiterDashboard = () => {
         { resumes, jobDescription },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
-      console.log("Backend Response:", response.data.data); // Log the response
 
       setAnalyzeResults(response.data.data);
       setShowConfetti(true);
@@ -91,14 +142,17 @@ const RecruiterDashboard = () => {
       ]);
     } catch (error) {
       console.error("Error analyzing resumes:", error);
+      setError("Failed to analyze resumes. Please try again.");
     }
   };
 
+  // Handle logout
   const handleLogout = () => {
     localStorage.removeItem("token");
     navigate("/recruiter-login");
   };
 
+  // Toggle shortlisted resumes view
   const toggleShortlistedResumes = () => {
     setShowShortlisted(!showShortlisted);
   };
@@ -117,6 +171,8 @@ const RecruiterDashboard = () => {
           </div>
         </div>
 
+        {error && <p className="text-red-500 mb-4">{error}</p>}
+
         <div className="grid md:grid-cols-2 gap-6 mb-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -127,12 +183,19 @@ const RecruiterDashboard = () => {
             <h2 className="text-xl font-semibold mb-4">Upload Resumes</h2>
             <input
               type="file"
-              accept=".pdf,.docx"
+              accept=".pdf"
               onChange={handleResumeUpload}
               multiple
               className="text-white w-full border border-white p-5 rounded-md bg-black"
+              disabled={loading} // Disable input while loading
             />
-            {resumes.length > 0 && (
+            {loading && (
+              <div className="mt-4 flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-gray-400">Parsing resumes...</p>
+              </div>
+            )}
+            {resumes.length > 0 && !loading && (
               <div className="mt-4">
                 <h3 className="text-lg font-semibold mb-2">Uploaded Resumes:</h3>
                 <ul className="list-disc list-inside">
@@ -166,13 +229,16 @@ const RecruiterDashboard = () => {
               placeholder="Paste job description here..."
               className="text-white w-full p-2 border border-white rounded-md bg-black focus:outline-none focus:ring-2 focus:ring-white"
             />
+            <p className="text-sm mt-2 text-gray-400">
+              {jobDescriptionWordCount} words (Minimum 50 words required)
+            </p>
           </motion.div>
         </div>
 
         <div className="flex flex-wrap gap-4 mb-8">
           <Button
             onClick={analyzeResumes}
-            disabled={resumes.length === 0 || !jobDescription}
+            disabled={resumes.length === 0 || jobDescriptionWordCount < 50}
           >
             Analyze Resumes
           </Button>
@@ -182,6 +248,7 @@ const RecruiterDashboard = () => {
           </Button>
         </div>
 
+        {/* Rest of the code remains the same */}
         <AnimatePresence>
           {showShortlisted && (
             <motion.div
@@ -266,10 +333,14 @@ const RecruiterDashboard = () => {
           )}
         </AnimatePresence>
       </div>
-      {showConfetti && <Confetti colors={["#FFFFFF", "#CCCCCC"]} />}
+      {showConfetti && <Confetti />}
     </div>
   );
 };
+      
+
+
+
 
 const Button = ({ children, ...props }) => (
   <button
