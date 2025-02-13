@@ -21,36 +21,61 @@ const StudentDashboard = () => {
 
   const handleResumeUpload = async (event) => {
     const file = event.target.files?.[0];
-    if (file) {
+    if (!file) return;
+  
+    // Check if the file is a PDF
+    if (file.type !== "application/pdf" || !file.name.endsWith(".pdf")) {
+      setError("Please upload a valid PDF file.");
+      return;
+    }
+  
+    setLoading(true);
+    setError("");
+  
+    try {
       const formData = new FormData();
       formData.append("resume", file);
-
-      setLoading(true);
-      setError("");
-
-      try {
-        const response = await fetch(
-          "https://resumeai-h4y7.onrender.com/api/upload-resume",
-          {
-            method: "POST",
-            body: formData,
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to upload resume");
+  
+      const response = await fetch(
+        "https://resumeai-h4y7.onrender.com/api/upload-resume",
+        {
+          method: "POST",
+          body: formData,
         }
-
-        const data = await response.json();
-        setResume({ file, text: data.text });
-      } catch (error) {
-        setError("Failed to upload resume. Please try again.");
-      } finally {
-        setLoading(false);
+      );
+  
+      if (!response.ok) throw new Error("Failed to upload resume");
+  
+      const data = await response.json();
+      const resumeText = data.text;
+  
+      // Check if the content resembles a resume
+      const resumePatterns = [
+        /experience/i,
+        /education/i,
+        /skills/i,
+        /projects/i,
+        /certifications/i,
+        /summary/i,
+        /objective/i,
+        /work\s*history/i,
+        /professional\s*experience/i,
+      ];
+  
+      const isResume = resumePatterns.some((pattern) => pattern.test(resumeText));
+  
+      if (!isResume) {
+        setError("The uploaded document does not appear to be a resume.");
+        return;
       }
+  
+      setResume({ file, text: resumeText });
+    } catch (error) {
+      setError("Failed to upload resume. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
-
   const handleJobDescriptionChange = (event) => {
     const text = event.target.value;
     setJobDescription(text);
@@ -435,7 +460,7 @@ const StudentDashboard = () => {
           )}
         </AnimatePresence>
       </div>
-      {showConfetti && <Confetti colors={["#FFFFFF", "#CCCCCC"]} />}
+      {showConfetti && <Confetti />}
     </div>
   );
 };
