@@ -24,7 +24,7 @@ const StudentDashboard = () => {
     if (!file) return;
   
     // Check if the file is a PDF
-    if (file.type !== "application/pdf" || !file.name.endsWith(".pdf")) {
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
       setError("Please upload a valid PDF file.");
       return;
     }
@@ -35,7 +35,7 @@ const StudentDashboard = () => {
     try {
       const formData = new FormData();
       formData.append("resume", file);
-  
+
       const response = await fetch(
         "https://resumeai-h4y7.onrender.com/api/upload-resume",
         {
@@ -43,14 +43,16 @@ const StudentDashboard = () => {
           body: formData,
         }
       );
-  
+
       if (!response.ok) throw new Error("Failed to upload resume");
-  
+
       const data = await response.json();
       const resumeText = data.text;
-  
 
-  
+      // Log the extracted text for debugging
+      console.log("Extracted Text:", resumeText);
+
+      // Set the resume without any validation
       setResume({ file, text: resumeText });
     } catch (error) {
       setError("Failed to upload resume. Please try again.");
