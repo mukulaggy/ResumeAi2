@@ -49,25 +49,7 @@ const StudentDashboard = () => {
       const data = await response.json();
       const resumeText = data.text;
   
-      // Check if the content resembles a resume
-      const resumePatterns = [
-        /experience/i,
-        /education/i,
-        /skills/i,
-        /projects/i,
-        /certifications/i,
-        /summary/i,
-        /objective/i,
-        /work\s*history/i,
-        /professional\s*experience/i,
-      ];
-  
-      const isResume = resumePatterns.some((pattern) => pattern.test(resumeText));
-  
-      if (!isResume) {
-        setError("The uploaded document does not appear to be a resume.");
-        return;
-      }
+
   
       setResume({ file, text: resumeText });
     } catch (error) {
