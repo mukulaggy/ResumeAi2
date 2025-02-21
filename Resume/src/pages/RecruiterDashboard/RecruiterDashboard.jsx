@@ -15,7 +15,9 @@ const RecruiterDashboard = () => {
   const [showShortlisted, setShowShortlisted] = useState(false);
   const [recruiterData, setRecruiterData] = useState(null);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false); // New state for loader
+  const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const resumesPerPage = 10; // Show 10 resumes per page
 
   // Fetch recruiter data on component mount
   useEffect(() => {
@@ -39,8 +41,7 @@ const RecruiterDashboard = () => {
     fetchRecruiterData();
   }, [navigate]);
 
-
-  // Handle resume upload
+  // Handle resume upload in batches
   const handleResumeUpload = async (event) => {
     if (event.target.files) {
       const files = Array.from(event.target.files);
@@ -54,45 +55,53 @@ const RecruiterDashboard = () => {
         return;
       }
 
-      const formData = new FormData();
-      files.forEach((file) => formData.append("resumes", file));
+      setLoading(true); // Start loading
+      setError("");
 
       try {
-        setLoading(true); // Start loading
-        setError("");
+        const batchSize = 10; // Process 10 resumes at a time
+        const uploadedResumes = [];
 
-        const token = localStorage.getItem("token");
-        const response = await axios.post(
-          "https://resumeai-h4y7.onrender.com/api/recruiter/upload-resumes",
-          formData,
-          {
-            headers: { Authorization: `Bearer ${token}` },
+        for (let i = 0; i < files.length; i += batchSize) {
+          const batch = files.slice(i, i + batchSize);
+          const formData = new FormData();
+          batch.forEach((file) => formData.append("resumes", file));
+
+          const token = localStorage.getItem("token");
+          const response = await axios.post(
+            "https://resumeai-h4y7.onrender.com/api/recruiter/upload-resumes",
+            formData,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
+
+          // Validate if uploaded files are resumes
+          const batchResumes = response.data.data;
+          const resumePatterns = [
+            /experience/i,
+            /education/i,
+            /skills/i,
+            /projects/i,
+            /certifications/i,
+            /summary/i,
+            /objective/i,
+            /work\s*history/i,
+            /professional\s*experience/i,
+          ];
+
+          const validResumes = batchResumes.filter((resume) =>
+            resumePatterns.some((pattern) => pattern.test(resume.text))
+          );
+
+          if (validResumes.length < batchResumes.length) {
+            setError("Some uploaded files do not appear to be resumes.");
           }
-        );
 
-        // Validate if uploaded files are resumes
-        const uploadedResumes = response.data.data;
-        const resumePatterns = [
-          /experience/i,
-          /education/i,
-          /skills/i,
-          /projects/i,
-          /certifications/i,
-          /summary/i,
-          /objective/i,
-          /work\s*history/i,
-          /professional\s*experience/i,
-        ];
-
-        const validResumes = uploadedResumes.filter((resume) =>
-          resumePatterns.some((pattern) => pattern.test(resume.text))
-        );
-
-        if (validResumes.length < uploadedResumes.length) {
-          setError("Some uploaded files do not appear to be resumes.");
+          uploadedResumes.push(...validResumes);
         }
 
-        setResumes((prevResumes) => [...prevResumes, ...validResumes]);
+        setResumes((prevResumes) => [...prevResumes, ...uploadedResumes]);
       } catch (error) {
         console.error("Error uploading resumes:", error);
         setError("Failed to upload resumes. Please try again.");
@@ -102,7 +111,6 @@ const RecruiterDashboard = () => {
     }
   };
 
-
   // Handle job description change
   const handleJobDescriptionChange = (event) => {
     const text = event.target.value;
@@ -111,7 +119,7 @@ const RecruiterDashboard = () => {
     setJobDescriptionWordCount(wordCount);
   };
 
-  // Analyze resumes
+  // Analyze resumes in batches
   const analyzeResumes = async () => {
     if (resumes.length === 0) {
       setError("Please upload at least one resume.");
@@ -123,19 +131,36 @@ const RecruiterDashboard = () => {
       return;
     }
 
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.post(
-        "https://resumeai-h4y7.onrender.com/api/recruiter/analyze-resumes",
-        { resumes, jobDescription },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+    setLoading(true);
+    setError("");
 
-      setAnalyzeResults(response.data.data);
+    try {
+      const batchSize = 10; // Analyze 10 resumes at a time
+      const analysisResults = [];
+
+      for (let i = 0; i < resumes.length; i += batchSize) {
+        const batch = resumes.slice(i, i + batchSize);
+        const token = localStorage.getItem("token");
+
+        const responses = await Promise.all(
+          batch.map((resume) =>
+            axios.post(
+              "https://resumeai-h4y7.onrender.com/api/recruiter/analyze-resumes",
+              { resumes: [resume], jobDescription },
+              { headers: { Authorization: `Bearer ${token}` } }
+            )
+          )
+        );
+
+        const batchResults = responses.map((response) => response.data.data[0]);
+        analysisResults.push(...batchResults);
+      }
+
+      setAnalyzeResults(analysisResults);
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 5000);
 
-      const newShortlisted = response.data.data
+      const newShortlisted = analysisResults
         .filter((result) => result.isShortlisted)
         .map((result) => result.filename);
       setShortlistedResumes((prevShortlisted) => [
@@ -145,31 +170,48 @@ const RecruiterDashboard = () => {
     } catch (error) {
       console.error("Error analyzing resumes:", error);
       setError("Failed to analyze resumes. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
-
-  // Analyze resumes
-
+  // Handle remove resume
   const handleRemoveResume = (index) => {
-    // Create a copy of the current resumes array
     const updatedResumes = [...resumes];
-  
-    // Remove the resume at the specified index
     updatedResumes.splice(index, 1);
-  
-    // Update the state with the new array
     setResumes(updatedResumes);
   };
-  // Handle logout
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    navigate("/recruiter-login");
-  };
 
-  // Toggle shortlisted resumes view
-  const toggleShortlistedResumes = () => {
-    setShowShortlisted(!showShortlisted);
+  // Pagination logic
+  const indexOfLastResume = currentPage * resumesPerPage;
+  const indexOfFirstResume = indexOfLastResume - resumesPerPage;
+  const currentResumes = resumes.slice(indexOfFirstResume, indexOfLastResume);
+
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+  const Pagination = () => {
+    const pageNumbers = [];
+    for (let i = 1; i <= Math.ceil(resumes.length / resumesPerPage); i++) {
+      pageNumbers.push(i);
+    }
+
+    return (
+      <div className="flex justify-center mt-4">
+        {pageNumbers.map((number) => (
+          <button
+            key={number}
+            onClick={() => paginate(number)}
+            className={`mx-1 px-3 py-1 rounded-md ${
+              currentPage === number
+                ? "bg-white text-black"
+                : "bg-gray-700 text-white"
+            }`}
+          >
+            {number}
+          </button>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -198,11 +240,11 @@ const RecruiterDashboard = () => {
             <h2 className="text-xl font-semibold mb-4">Upload Resumes</h2>
             <input
               type="file"
-              accept=".pdf"
+              accept=".pdf,.doc,.docx"
               onChange={handleResumeUpload}
               multiple
               className="text-white w-full border border-white p-5 rounded-md bg-black"
-              disabled={loading} // Disable input while loading
+              disabled={loading}
             />
             {loading && (
               <div className="mt-4 flex items-center gap-2">
@@ -214,11 +256,11 @@ const RecruiterDashboard = () => {
               <div className="mt-4">
                 <h3 className="text-lg font-semibold mb-2">Uploaded Resumes:</h3>
                 <ul className="list-disc list-inside">
-                  {resumes.map((resume, index) => (
+                  {currentResumes.map((resume, index) => (
                     <li key={index} className="flex justify-between items-center mb-2">
                       <span>{resume.filename}</span>
                       <button
-                        onClick={() => handleRemoveResume(index)}
+                        onClick={() => handleRemoveResume(index + (currentPage - 1) * resumesPerPage)}
                         className="text-red-500 hover:text-red-700"
                       >
                         Remove
@@ -226,6 +268,7 @@ const RecruiterDashboard = () => {
                     </li>
                   ))}
                 </ul>
+                <Pagination />
               </div>
             )}
           </motion.div>
@@ -253,17 +296,15 @@ const RecruiterDashboard = () => {
         <div className="flex flex-wrap gap-4 mb-8">
           <Button
             onClick={analyzeResumes}
-            disabled={resumes.length === 0 || jobDescriptionWordCount < 50}
+            disabled={resumes.length === 0 || jobDescriptionWordCount < 50 || loading}
           >
-            Analyze Resumes
+            {loading ? "Analyzing..." : "Analyze Resumes"}
           </Button>
-
-          <Button onClick={toggleShortlistedResumes}>
+          <Button onClick={() => setShowShortlisted(!showShortlisted)}>
             {showShortlisted ? "Hide Shortlisted Resumes" : "Show Shortlisted Resumes"}
           </Button>
         </div>
 
-        {/* Rest of the code remains the same */}
         <AnimatePresence>
           {showShortlisted && (
             <motion.div
@@ -298,7 +339,6 @@ const RecruiterDashboard = () => {
               className="bg-black rounded-xl border border-white p-6"
             >
               <h2 className="text-2xl font-semibold mb-4">Analysis Results</h2>
-
               {analyzeResults.map((result, index) => (
                 <div key={index} className="mb-8 border-b border-white pb-4 last:border-b-0">
                   <h3 className="text-xl font-semibold mb-4">{result.filename}</h3>
@@ -314,12 +354,10 @@ const RecruiterDashboard = () => {
                     </div>
                     <p className="text-right text-sm mt-1">{result.matchPercentage}% Match</p>
                   </div>
-
                   <div className="mb-6">
                     <h4 className="text-lg font-medium mb-2">Summary</h4>
                     <p className="text-gray-300">{result.summary}</p>
                   </div>
-
                   <div className="mb-6">
                     <h4 className="text-lg font-medium mb-2">Strengths</h4>
                     <ul className="list-disc list-inside text-green-400">
@@ -328,7 +366,6 @@ const RecruiterDashboard = () => {
                       ))}
                     </ul>
                   </div>
-
                   <div className="mb-6">
                     <h4 className="text-lg font-medium mb-2">Weaknesses</h4>
                     <ul className="list-disc list-inside text-red-400">
@@ -337,7 +374,6 @@ const RecruiterDashboard = () => {
                       ))}
                     </ul>
                   </div>
-
                   <div className="mb-6">
                     <h4 className="text-lg font-medium mb-2">Recommendation</h4>
                     <p className="text-gray-300">{result.recommendation}</p>
@@ -352,10 +388,6 @@ const RecruiterDashboard = () => {
     </div>
   );
 };
-      
-
-
-
 
 const Button = ({ children, ...props }) => (
   <button
