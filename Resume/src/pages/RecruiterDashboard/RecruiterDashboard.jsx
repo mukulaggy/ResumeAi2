@@ -151,7 +151,16 @@ const RecruiterDashboard = () => {
 
   // Analyze resumes
 
-
+  const handleRemoveResume = (index) => {
+    // Create a copy of the current resumes array
+    const updatedResumes = [...resumes];
+  
+    // Remove the resume at the specified index
+    updatedResumes.splice(index, 1);
+  
+    // Update the state with the new array
+    setResumes(updatedResumes);
+  };
   // Handle logout
   const handleLogout = () => {
     localStorage.removeItem("token");
