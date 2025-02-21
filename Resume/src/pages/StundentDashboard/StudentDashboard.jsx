@@ -35,7 +35,7 @@ const StudentDashboard = () => {
     try {
       const formData = new FormData();
       formData.append("resume", file);
-
+  
       const response = await fetch(
         "https://resumeai-h4y7.onrender.com/api/upload-resume",
         {
@@ -43,19 +43,37 @@ const StudentDashboard = () => {
           body: formData,
         }
       );
-
+  
       if (!response.ok) throw new Error("Failed to upload resume");
-
+  
       const data = await response.json();
       const resumeText = data.text;
-
+  
       // Log the extracted text for debugging
       console.log("Extracted Text:", resumeText);
-
-      // Set the resume without any validation
+  
+      // Validate if the extracted text is a resume
+      const resumePatterns = [
+        /experience/i,
+        /education/i,
+        /skills/i,
+        /projects/i,
+        /certifications/i,
+        /summary/i,
+        /objective/i,
+        /work\s*history/i,
+        /professional\s*experience/i,
+      ];
+  
+      const isValidResume = resumePatterns.some((pattern) => pattern.test(resumeText));
+      if (!isValidResume) {
+        throw new Error("Uploaded file does not appear to be a valid resume");
+      }
+  
+      // Set the resume if it passes validation
       setResume({ file, text: resumeText });
     } catch (error) {
-      setError("Failed to upload resume. Please try again.");
+      setError(error.message || "Failed to upload resume. Please try again.");
     } finally {
       setLoading(false);
     }
