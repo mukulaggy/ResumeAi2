@@ -19,7 +19,7 @@ const storage = multer.diskStorage({
 // Protected route (requires JWT token)
 const upload = multer({ storage });
 router.get("/dashboard", protect, getDashboard);
-router.post("/upload-resumes", upload.array("resumes", 25), uploadResumes);
+router.post("/upload-resumes", upload.array("resumes", 100), uploadResumes);
 router.post("/analyze-resumes", analyzeResumes);
 router.get("/shortlisted-resumes", getShortlistedResumes);
 
