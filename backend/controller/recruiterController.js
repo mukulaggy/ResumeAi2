@@ -79,97 +79,128 @@ const uploadResumes = async (req, res) => {
 };
 
 // Analyze resumes against job description
-const analyzeResumes = async (req, res) => {
+const analyzeResumes = async () => {
+  if (resumes.length === 0) {
+    setError("Please upload at least one resume.");
+    return;
+  }
+
+  if (jobDescriptionWordCount < 50) {
+    setError("Job description must be at least 50 words.");
+    return;
+  }
+
+  setLoading(true);
+  setError("");
+
   try {
-    const { resumes, jobDescription } = req.body;
-
-    if (!resumes || !jobDescription) {
-      return res
-        .status(400)
-        .json({ error: "Resumes and job description are required" });
-    }
-
+    const batchSize = 5; // Process 5 resumes at a time
+    const delayBetweenBatches = 5000; // 5 seconds delay between batches
     const analysisResults = [];
-    for (const resume of resumes) {
-      try {
-        const prompt = `
-          Analyze this resume against the job description and provide a concise analysis in exactly this format:
 
-          **Match Percentage**: [number]%
+    for (let i = 0; i < resumes.length; i += batchSize) {
+      const batch = resumes.slice(i, i + batchSize);
+      const token = localStorage.getItem("token");
 
-          **Summary**: 
-          One or two sentences about overall fit.
+      // Process each resume in the batch
+      const batchResults = await Promise.all(
+        batch.map(async (resume) => {
+          let retries = 3; // Retry up to 3 times
+          while (retries > 0) {
+            try {
+              const response = await axios.post(
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyDTmpqjsYvoft5S2LJmBMnue8sSXRjgA0w",
+                {
+                  contents: [
+                    {
+                      parts: [
+                        {
+                          text: `
+                            Analyze this resume against the job description and provide a concise analysis in exactly this format:
 
-          **Strengths**:
-          * Key strength 1
-          * Key strength 2
-          * Key strength 3
+                            **Match Percentage**: [number]%
 
-          **Weaknesses**:
-          * Missing skill 1
-          * Missing skill 2
-          * Missing skill 3
+                            **Summary**: 
+                            One or two sentences about overall fit.
 
-          **Recommendation**:
-          One sentence recommendation.
+                            **Strengths**:
+                            * Key strength 1
+                            * Key strength 2
+                            * Key strength 3
 
-          Resume Text:
-          ${resume.text}
+                            **Weaknesses**:
+                            * Missing skill 1
+                            * Missing skill 2
+                            * Missing skill 3
 
-          Job Description:
-          ${jobDescription}
+                            **Recommendation**:
+                            One sentence recommendation.
 
-          Rules:
-          1. Keep all sections brief and to the point
-          2. Strengths and Weaknesses should be bullet points starting with *
-          3. Use exact section headers with ** marks
-          4. Match percentage should be a number between 0-100
-          5. Maximum 3-4 points each in Strengths and Weaknesses
-          6. No extra sections or text
-        `;
+                            Resume Text:
+                            ${resume.text}
 
-        const response = await axios.post(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-          {
-            contents: [
-              {
-                parts: [
-                  {
-                    text: prompt,
-                  },
-                ],
-              },
-            ],
+                            Job Description:
+                            ${jobDescription}
+
+                            Rules:
+                            1. Keep all sections brief and to the point
+                            2. Strengths and Weaknesses should be bullet points starting with *
+                            3. Use exact section headers with ** marks
+                            4. Match percentage should be a number between 0-100
+                            5. Maximum 3-4 points each in Strengths and Weaknesses
+                            6. No extra sections or text
+                          `,
+                        },
+                      ],
+                    },
+                  ],
+                },
+                { headers: { Authorization: `Bearer ${token}` } }
+              );
+
+              return {
+                filename: resume.filename,
+                ...parseAnalysisResponse(response.data.candidates[0].content.parts[0].text),
+                isShortlisted: parseAnalysisResponse(response.data.candidates[0].content.parts[0].text).matchPercentage > 70,
+              };
+            } catch (error) {
+              if (error.response?.status === 429 && retries > 0) {
+                // Retry after a delay
+                retries--;
+                await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait 5 seconds before retrying
+              } else {
+                throw error; // Throw error if retries are exhausted or it's not a 429 error
+              }
+            }
           }
-        );
+          return null; // Skip this resume if all retries fail
+        })
+      );
 
-        const analysis = response.data.candidates[0].content.parts[0].text;
-        console.log("Gemini Response:", analysis);
+      analysisResults.push(...batchResults.filter((result) => result !== null));
 
-        // Parse the response
-        const parsedResults = parseAnalysisResponse(analysis);
-
-        analysisResults.push({
-          filename: resume.filename,
-          ...parsedResults,
-          isShortlisted: parsedResults.matchPercentage > 70,
-        });
-      } catch (error) {
-        console.error(`Error analyzing resume ${resume.filename}:`, error);
-        analysisResults.push({
-          filename: resume.filename,
-          error: "Failed to analyze resume",
-        });
+      // Add a delay between batches to avoid rate limiting
+      if (i + batchSize < resumes.length) {
+        await new Promise((resolve) => setTimeout(resolve, delayBetweenBatches));
       }
     }
 
-    res.status(200).json({ message: "Analysis complete", data: analysisResults });
+    setAnalyzeResults(analysisResults);
+    setShowConfetti(true);
+    setTimeout(() => setShowConfetti(false), 5000);
+
+    const newShortlisted = analysisResults
+      .filter((result) => result.isShortlisted)
+      .map((result) => result.filename);
+    setShortlistedResumes((prevShortlisted) => [
+      ...prevShortlisted,
+      ...newShortlisted,
+    ]);
   } catch (error) {
     console.error("Error analyzing resumes:", error);
-    res.status(500).json({
-      error: "Failed to analyze resumes",
-      details: error.message,
-    });
+    setError("Failed to analyze resumes. Please try again.");
+  } finally {
+    setLoading(false);
   }
 };
 
