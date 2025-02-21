@@ -1,7 +1,9 @@
 const Recruiter = require("../Model/recruiter.js");
-const { extractTextFromPDF } = require("../utils/geminiUtils");
+const { extractTextFromPDF, extractTextFromDOC } = require("../utils/geminiUtils");
 const ResumeModel = require("../Model/resumeModel.js");
 const axios = require("axios");
+const fs = require("fs");
+
 // Get recruiter dashboard
 const getDashboard = async (req, res) => {
   try {
@@ -22,13 +24,54 @@ const uploadResumes = async (req, res) => {
 
     const extractedTexts = [];
     for (const file of files) {
-      const text = await extractTextFromPDF(file.path);
-      extractedTexts.push({ filename: file.originalname, text });
+      try {
+        let text = "";
+        if (file.mimetype === "application/pdf") {
+          text = await extractTextFromPDF(file.path);
+        } else if (
+          file.mimetype === "application/msword" ||
+          file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ) {
+          text = await extractTextFromDOC(file.path);
+        } else {
+          throw new Error("Unsupported file type");
+        }
+
+        // Validate if the extracted text is a resume
+        const resumePatterns = [
+          /experience/i,
+          /education/i,
+          /skills/i,
+          /projects/i,
+          /certifications/i,
+          /summary/i,
+          /objective/i,
+          /work\s*history/i,
+          /professional\s*experience/i,
+        ];
+
+        const isValidResume = resumePatterns.some((pattern) => pattern.test(text));
+        if (!isValidResume) {
+          throw new Error("Uploaded file does not appear to be a valid resume");
+        }
+
+        extractedTexts.push({ filename: file.originalname, text });
+      } catch (error) {
+        console.error(`Error processing file ${file.originalname}:`, error);
+        extractedTexts.push({
+          filename: file.originalname,
+          error: error.message,
+        });
+      } finally {
+        // Delete the uploaded file after processing
+        fs.unlinkSync(file.path);
+      }
     }
 
-    res
-      .status(200)
-      .json({ message: "Resumes uploaded successfully", data: extractedTexts });
+    res.status(200).json({
+      message: "Resumes uploaded successfully",
+      data: extractedTexts,
+    });
   } catch (error) {
     console.error("Error uploading resumes:", error);
     res.status(500).json({ error: "Failed to upload resumes" });
@@ -48,73 +91,79 @@ const analyzeResumes = async (req, res) => {
 
     const analysisResults = [];
     for (const resume of resumes) {
-      const prompt = `
-    Analyze this resume against the job description and provide a concise analysis in exactly this format:
+      try {
+        const prompt = `
+          Analyze this resume against the job description and provide a concise analysis in exactly this format:
 
-    **Match Percentage**: [number]%
+          **Match Percentage**: [number]%
 
-    **Summary**: 
-    One or two sentences about overall fit.
+          **Summary**: 
+          One or two sentences about overall fit.
 
-    **Strengths**:
-    * Key strength 1
-    * Key strength 2
-    * Key strength 3
+          **Strengths**:
+          * Key strength 1
+          * Key strength 2
+          * Key strength 3
 
-    **Weaknesses**:
-    * Missing skill 1
-    * Missing skill 2
-    * Missing skill 3
+          **Weaknesses**:
+          * Missing skill 1
+          * Missing skill 2
+          * Missing skill 3
 
-    **Recommendation**:
-    One sentence recommendation.
+          **Recommendation**:
+          One sentence recommendation.
 
-    Resume Text:
-    ${resume.text}
+          Resume Text:
+          ${resume.text}
 
-    Job Description:
-    ${jobDescription}
+          Job Description:
+          ${jobDescription}
 
-    Rules:
-    1. Keep all sections brief and to the point
-    2. Strengths and Weaknesses should be bullet points starting with *
-    3. Use exact section headers with ** marks
-    4. Match percentage should be a number between 0-100
-    5. Maximum 3-4 points each in Strengths and Weaknesses
-    6. No extra sections or text
-  `;
+          Rules:
+          1. Keep all sections brief and to the point
+          2. Strengths and Weaknesses should be bullet points starting with *
+          3. Use exact section headers with ** marks
+          4. Match percentage should be a number between 0-100
+          5. Maximum 3-4 points each in Strengths and Weaknesses
+          6. No extra sections or text
+        `;
 
-      const response = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-        {
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt,
-                },
-              ],
-            },
-          ],
-        }
-      );
+        const response = await axios.post(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+          {
+            contents: [
+              {
+                parts: [
+                  {
+                    text: prompt,
+                  },
+                ],
+              },
+            ],
+          }
+        );
 
-      const analysis = response.data.candidates[0].content.parts[0].text;
-      console.log("Gemini Response:", analysis); // Log the response
+        const analysis = response.data.candidates[0].content.parts[0].text;
+        console.log("Gemini Response:", analysis);
 
-      // Parse the response
-      const parsedResults = parseAnalysisResponse(analysis);
+        // Parse the response
+        const parsedResults = parseAnalysisResponse(analysis);
 
-      analysisResults.push({
-        filename: resume.filename,
-        ...parsedResults,
-        isShortlisted: parsedResults.matchPercentage > 70,
-      });
+        analysisResults.push({
+          filename: resume.filename,
+          ...parsedResults,
+          isShortlisted: parsedResults.matchPercentage > 70,
+        });
+      } catch (error) {
+        console.error(`Error analyzing resume ${resume.filename}:`, error);
+        analysisResults.push({
+          filename: resume.filename,
+          error: "Failed to analyze resume",
+        });
+      }
     }
 
-    res
-      .status(200)
-      .json({ message: "Analysis complete", data: analysisResults });
+    res.status(200).json({ message: "Analysis complete", data: analysisResults });
   } catch (error) {
     console.error("Error analyzing resumes:", error);
     res.status(500).json({
@@ -152,8 +201,8 @@ const parseAnalysisResponse = (analysisText) => {
     if (strengthsMatch) {
       result.strengths = strengthsMatch[1]
         .split("\n")
-        .map((s) => s.replace(/^\*\s*/, "").trim()) // Remove * and trim
-        .filter((s) => s.length > 0); // Remove empty lines
+        .map((s) => s.replace(/^\*\s*/, "").trim())
+        .filter((s) => s.length > 0);
     }
 
     // Extract Weaknesses
@@ -161,8 +210,8 @@ const parseAnalysisResponse = (analysisText) => {
     if (weaknessesMatch) {
       result.weaknesses = weaknessesMatch[1]
         .split("\n")
-        .map((s) => s.replace(/^\*\s*/, "").trim()) // Remove * and trim
-        .filter((s) => s.length > 0); // Remove empty lines
+        .map((s) => s.replace(/^\*\s*/, "").trim())
+        .filter((s) => s.length > 0);
     }
 
     // Extract Recommendation

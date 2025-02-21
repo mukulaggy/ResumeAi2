@@ -1,27 +1,29 @@
-const pdfreader = require("pdfreader");
+const pdfParse = require("pdf-parse");
+const mammoth = require("mammoth");
 const axios = require("axios");
 const fs = require("fs");
 
 // Extract text from a PDF file
-const extractTextFromPDF = (filePath) => {
-  return new Promise((resolve, reject) => {
-    const textChunks = [];
-    console.log("Starting PDF text extraction...");
+const extractTextFromPDF = async (filePath) => {
+  try {
+    const dataBuffer = fs.readFileSync(filePath);
+    const data = await pdfParse(dataBuffer);
+    return data.text;
+  } catch (error) {
+    console.error("Error extracting text from PDF:", error);
+    throw error;
+  }
+};
 
-    new pdfreader.PdfReader().parseFileItems(filePath, (err, item) => {
-      if (err) {
-        console.error("Error parsing PDF:", err);
-        return reject(err);
-      }
-      
-      if (!item) {
-        console.log("PDF parsing complete.");
-        return resolve(textChunks.join(" "));
-      }
-      
-      if (item.text) textChunks.push(item.text);
-    });
-  });
+// Extract text from a DOC/DOCX file
+const extractTextFromDOC = async (filePath) => {
+  try {
+    const result = await mammoth.extractRawText({ path: filePath });
+    return result.value;
+  } catch (error) {
+    console.error("Error extracting text from DOC/DOCX:", error);
+    throw error;
+  }
 };
 
 // Analyze the resume against a job description using Gemini API
@@ -98,4 +100,4 @@ const parseAnalysisResults = (analysisText) => {
   return { matchPercentage, missingSkills, suggestions };
 };
 
-module.exports = { extractTextFromPDF, analyzeResumeWithGemini, parseAnalysisResults };
+module.exports = { extractTextFromPDF, extractTextFromDOC, analyzeResumeWithGemini, parseAnalysisResults };

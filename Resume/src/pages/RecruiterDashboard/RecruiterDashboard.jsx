@@ -39,6 +39,7 @@ const RecruiterDashboard = () => {
     fetchRecruiterData();
   }, [navigate]);
 
+
   // Handle resume upload
   const handleResumeUpload = async (event) => {
     if (event.target.files) {
@@ -46,10 +47,10 @@ const RecruiterDashboard = () => {
 
       // Validate file type
       const invalidFiles = files.filter(
-        (file) => file.type !== "application/pdf" && !file.name.endsWith(".pdf")
+        (file) => !file.type.match(/(pdf|msword|vnd.openxmlformats-officedocument.wordprocessingml.document)/)
       );
       if (invalidFiles.length > 0) {
-        setError("Please upload only PDF files.");
+        setError("Please upload only PDF or DOC/DOCX files.");
         return;
       }
 
@@ -101,6 +102,7 @@ const RecruiterDashboard = () => {
     }
   };
 
+
   // Handle job description change
   const handleJobDescriptionChange = (event) => {
     const text = event.target.value;
@@ -145,6 +147,10 @@ const RecruiterDashboard = () => {
       setError("Failed to analyze resumes. Please try again.");
     }
   };
+
+
+  // Analyze resumes
+
 
   // Handle logout
   const handleLogout = () => {
