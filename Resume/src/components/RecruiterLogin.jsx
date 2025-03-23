@@ -22,7 +22,7 @@ const RecruiterLogin = () => {
 
     try {
       const response = await axios.post(
-        "https://resumeai-h4y7.onrender.com/api/auth/login",
+      `${import.meta.env.VITE_BACKEND_URL}/api/auth/login`,
         formData
       );
       const { token } = response.data;

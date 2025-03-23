@@ -25,7 +25,7 @@ const RecruiterDashboard = () => {
       try {
         const token = localStorage.getItem("token");
         const response = await axios.get(
-          "https://resumeai-h4y7.onrender.com/api/recruiter/dashboard",
+          `${import.meta.env.VITE_BACKEND_URL}/api/recruiter/dashboard`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -69,7 +69,7 @@ const RecruiterDashboard = () => {
 
           const token = localStorage.getItem("token");
           const response = await axios.post(
-            "https://resumeai-h4y7.onrender.com/api/recruiter/upload-resumes",
+           `${import.meta.env.VITE_BACKEND_URL}/api/recruiter/upload-resumes`,
             formData,
             {
               headers: { Authorization: `Bearer ${token}` },
@@ -145,7 +145,7 @@ const RecruiterDashboard = () => {
         const responses = await Promise.all(
           batch.map((resume) =>
             axios.post(
-              "https://resumeai-h4y7.onrender.com/api/recruiter/analyze-resumes",
+            `${import.meta.env.VITE_BACKEND_URL}/api/recruiter/analyze-resumes`,
               { resumes: [resume], jobDescription },
               { headers: { Authorization: `Bearer ${token}` } }
             )
@@ -181,7 +181,47 @@ const RecruiterDashboard = () => {
     updatedResumes.splice(index, 1);
     setResumes(updatedResumes);
   };
-
+  const ResultSection = memo(({ result }) => (
+    <div className="mb-8 border-b border-white pb-4 last:border-b-0">
+      <h3 className="text-xl font-semibold mb-4">{result.filename}</h3>
+      <div className="mb-6">
+        <h4 className="text-lg font-medium mb-2">Match Percentage</h4>
+        <div className="bg-white/20 rounded-full h-4 overflow-hidden">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${result.matchPercentage}%` }}
+            transition={{ duration: 1, ease: "easeOut" }}
+            className="bg-white h-full rounded-full"
+          />
+        </div>
+        <p className="text-right text-sm mt-1">{result.matchPercentage}% Match</p>
+      </div>
+      <div className="mb-6">
+        <h4 className="text-lg font-medium mb-2">Summary</h4>
+        <p className="text-gray-300">{result.summary}</p>
+      </div>
+      <div className="mb-6">
+        <h4 className="text-lg font-medium mb-2">Strengths</h4>
+        <ul className="list-disc list-inside text-green-400">
+          {result.strengths.map((strength, strengthIndex) => (
+            <li key={strengthIndex}>{strength}</li>
+          ))}
+        </ul>
+      </div>
+      <div className="mb-6">
+        <h4 className="text-lg font-medium mb-2">Weaknesses</h4>
+        <ul className="list-disc list-inside text-red-400">
+          {result.weaknesses.map((weakness, weaknessIndex) => (
+            <li key={weaknessIndex}>{weakness}</li>
+          ))}
+        </ul>
+      </div>
+      <div className="mb-6">
+        <h4 className="text-lg font-medium mb-2">Recommendation</h4>
+        <p className="text-gray-300">{result.recommendation}</p>
+      </div>
+    </div>
+  ));
   // Pagination logic
   const indexOfLastResume = currentPage * resumesPerPage;
   const indexOfFirstResume = indexOfLastResume - resumesPerPage;

@@ -37,7 +37,7 @@ const StudentDashboard = () => {
       formData.append("resume", file);
   
       const response = await fetch(
-        "https://resumeai-h4y7.onrender.com/api/upload-resume",
+        `${import.meta.env.VITE_BACKEND_URL}/api/upload-resume`,
         {
           method: "POST",
           body: formData,
@@ -106,7 +106,7 @@ const StudentDashboard = () => {
 
     try {
       const response = await fetch(
-        "https://resumeai-h4y7.onrender.com/api/analyze-resume",
+      `${import.meta.env.VITE_BACKEND_URL}/api/analyze-resume`,
         {
           method: "POST",
           body: JSON.stringify({
@@ -145,7 +145,7 @@ const StudentDashboard = () => {
 
     try {
       const response = await fetch(
-        "https://resumeai-h4y7.onrender.com/api/tell-about-resume",
+      `${import.meta.env.VITE_BACKEND_URL}/api/tell-about-resume`,
         {
           method: "POST",
           body: JSON.stringify({
@@ -196,7 +196,7 @@ const StudentDashboard = () => {
 
     try {
       const response = await fetch(
-        "https://resumeai-h4y7.onrender.com/api/improve-skills",
+     `${import.meta.env.VITE_BACKEND_URL}/api/improve-skills`,
         {
           method: "POST",
           body: JSON.stringify({
@@ -250,7 +250,7 @@ const StudentDashboard = () => {
 
     try {
       const response = await fetch(
-        "https://resumeai-h4y7.onrender.com/api/missing-keywords",
+      `${import.meta.env.VITE_BACKEND_URL}/api/missing-keywords`,
         {
           method: "POST",
           body: JSON.stringify({
