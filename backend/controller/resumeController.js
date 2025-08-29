@@ -3,16 +3,34 @@ const {
   analyzeResumeWithGemini,
   parseAnalysisResults,
 } = require("../utils/geminiUtils.js");
-const ResumeModel=require("../Model/resumeModel");
-
+const AWS = require("aws-sdk");
 const multer = require("multer");
-
-const upload = multer({ dest: "uploads/" }).single("resume");
+const multerS3 = require("multer-s3");
 const axios = require("axios");
+
+// Configure AWS SDK
+const s3 = new AWS.S3({
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  region: process.env.AWS_REGION,
+});
+
+const upload = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: process.env.S3_BUCKET_NAME,
+    acl: "public-read", // or "private"
+    key: function (req, file, cb) {
+      cb(null, `resumes/${Date.now()}_${file.originalname}`);
+    },
+  }),
+}).single("resume");
+
 
 const uploadResume = async (req, res) => {
   upload(req, res, async (err) => {
     if (err) {
+      console.error("Upload Error:", err);
       return res.status(400).json({ error: "File upload failed" });
     }
 
@@ -21,14 +39,26 @@ const uploadResume = async (req, res) => {
     }
 
     try {
-      const text = await extractTextFromPDF(req.file.path); // Use the imported function
-      res.json({ text });
+      // Get the file from S3
+      const fileUrl = req.file.location;
+
+      // If you want to extract text, you need to download it back from S3
+      const params = {
+        Bucket: process.env.S3_BUCKET_NAME,
+        Key: req.file.key,
+      };
+      const fileData = await s3.getObject(params).promise();
+
+      const text = await extractTextFromPDF(fileData.Body);
+
+      res.json({ fileUrl, text });
     } catch (error) {
-      console.error("Error extracting text from PDF:", error);
-      res.status(500).json({ error: "Failed to extract text from PDF" });
+      console.error("Error processing file:", error);
+      res.status(500).json({ error: "Failed to process resume" });
     }
   });
 };
+
 const analyzeResume = async (req, res) => {
   const { resumeText, jobDescription } = req.body;
 
@@ -48,7 +78,6 @@ const analyzeResume = async (req, res) => {
     res.status(500).json({ error: "Failed to analyze resume" });
   }
 };
-
 
 const tellAboutResume = async (req, res) => {
   const { resumeText } = req.body;
@@ -173,7 +202,9 @@ const missingKeywords = async (req, res) => {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error("Gemini API key is missing. Please set the GEMINI_API_KEY environment variable.");
+      throw new Error(
+        "Gemini API key is missing. Please set the GEMINI_API_KEY environment variable."
+      );
     }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;

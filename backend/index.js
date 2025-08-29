@@ -9,7 +9,7 @@ const { protect } = require("./middleware/authMiddleware");
 
 const connectDB = require("./config/db.js");
 
-dotenv.config();
+
 connectDB();
 
 const app = express();
