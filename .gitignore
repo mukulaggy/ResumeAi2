@@ -4,10 +4,6 @@
 .env.development
 .env.test
 .env.production
-<<<<<<< HEAD
-F1.pem
-=======
 F2.pem
->>>>>>> f1bab27 (In)
 
 F3.pem
