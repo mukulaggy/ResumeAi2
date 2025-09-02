@@ -3,29 +3,26 @@ const {
   analyzeResumeWithGemini,
   parseAnalysisResults,
 } = require("../utils/geminiUtils.js");
-const AWS = require("aws-sdk");
-const multer = require("multer");
-const multerS3 = require("multer-s3");
-const axios = require("axios");
 
-// Configure AWS SDK
-const s3 = new AWS.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+const { S3Client, PutObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
+const multer = require("multer");
+const axios = require("axios");
+const dotenv = require("dotenv");
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
+
+dotenv.config();
+
+// Configure AWS SDK v3
+const s3 = new S3Client({
   region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
 });
 
-const upload = multer({
-  storage: multerS3({
-    s3: s3,
-    bucket: process.env.S3_BUCKET_NAME,
-    acl: "public-read", // or "private"
-    key: function (req, file, cb) {
-      cb(null, `resumes/${Date.now()}_${file.originalname}`);
-    },
-  }),
-}).single("resume");
-
+// Multer with memory storage
+const upload = multer({ storage: multer.memoryStorage() }).single("resume");
 
 const uploadResume = async (req, res) => {
   upload(req, res, async (err) => {
@@ -39,17 +36,34 @@ const uploadResume = async (req, res) => {
     }
 
     try {
-      // Get the file from S3
-      const fileUrl = req.file.location;
+      const key = `resumes/${Date.now()}_${req.file.originalname}`;
 
-      // If you want to extract text, you need to download it back from S3
-      const params = {
-        Bucket: process.env.S3_BUCKET_NAME,
-        Key: req.file.key,
-      };
-      const fileData = await s3.getObject(params).promise();
+      // Upload to S3
+      await s3.send(new PutObjectCommand({
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: key,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype,
+      }));
 
-      const text = await extractTextFromPDF(fileData.Body);
+      // Optional: Generate file URL
+      const fileUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+
+      // Download back for text extraction
+      const getCommand = new GetObjectCommand({
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: key,
+      });
+
+      const fileData = await s3.send(getCommand);
+      const chunks = [];
+      for await (const chunk of fileData.Body) {
+        chunks.push(chunk);
+      }
+      const buffer = Buffer.concat(chunks);
+
+      // Extract PDF text from buffer
+      const text = await extractTextFromPDF(buffer);
 
       res.json({ fileUrl, text });
     } catch (error) {
@@ -58,7 +72,6 @@ const uploadResume = async (req, res) => {
     }
   });
 };
-
 const analyzeResume = async (req, res) => {
   const { resumeText, jobDescription } = req.body;
 

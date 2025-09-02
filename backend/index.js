@@ -31,7 +31,7 @@ app.use((req, res, next) => {
 });
 app.use(
   cors({
-    origin: ["*","https://resumeai-nine.vercel.app","http://localhost:5173"],
+    origin: ["*","https://resumeai-nine.vercel.app","http://localhost:5173","http://51.20.132.21:3000"],
     methods: "GET,POST,PUT,DELETE",
     credentials: true,
   })

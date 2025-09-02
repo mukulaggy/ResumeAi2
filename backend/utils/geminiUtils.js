@@ -3,23 +3,48 @@ const mammoth = require("mammoth");
 const axios = require("axios");
 const fs = require("fs");
 
-// Extract text from a PDF file
-const extractTextFromPDF = async (filePath) => {
+// Extract text from a PDF file or Bufferc
+const extractTextFromPDF = async (input) => {
   try {
-    const dataBuffer = fs.readFileSync(filePath);
+    let dataBuffer;
+
+    if (Buffer.isBuffer(input)) {
+      // Input is already a buffer
+      dataBuffer = input;
+    } else if (typeof input === "string") {
+      // Input is a file path
+      dataBuffer = fs.readFileSync(input);
+    } else {
+      throw new Error(
+        "Invalid input type for PDF extraction. Must be a Buffer or string path."
+      );
+    }
+
     const data = await pdfParse(dataBuffer);
-    return data.text;
+    return data.text.trim(); // cleaner output
   } catch (error) {
-    console.error("Error extracting text from PDF:", error);
+    console.error("Error extracting text from PDF:", error.message);
     throw error;
   }
 };
 
-// Extract text from a DOC/DOCX file
-const extractTextFromDOC = async (filePath) => {
+
+
+// Extract text from a DOC/DOCX file or Buffer
+const extractTextFromDOC = async (input) => {
   try {
-    const result = await mammoth.extractRawText({ path: filePath });
-    return result.value;
+    if (Buffer.isBuffer(input)) {      // Write buffer to temp file and process
+      const tmpPath = `/tmp/${Date.now()}.docx`;
+      fs.writeFileSync(tmpPath, input);
+      const result = await mammoth.extractRawText({ path: tmpPath });
+      fs.unlinkSync(tmpPath);
+      return result.value;
+    } else if (typeof input === "string") {
+      const result = await mammoth.extractRawText({ path: input });
+      return result.value;
+    } else {
+      throw new Error("Invalid input type for DOC extraction");
+    }
   } catch (error) {
     console.error("Error extracting text from DOC/DOCX:", error);
     throw error;
@@ -45,13 +70,10 @@ Suggestions: <improvement suggestions>
 
     const response = await axios.post(
       url,
-      {
-        contents: [{ parts: [{ text: prompt }] }],
-      },
+      { contents: [{ parts: [{ text: prompt }] }] },
       { headers: { "Content-Type": "application/json" } }
     );
 
-    console.log("Gemini API Response:", response.data);
     return parseAnalysisResults(response.data?.candidates?.[0]?.content?.parts?.[0]?.text || "");
   } catch (error) {
     console.error("Error analyzing resume with Gemini:", error);
@@ -61,42 +83,29 @@ Suggestions: <improvement suggestions>
 
 // Parse the response from Gemini API
 const parseAnalysisResults = (analysisText) => {
-  console.log("Raw Response:", analysisText);
   if (!analysisText) return { matchPercentage: 0, missingSkills: [], suggestions: [] };
 
-  // Clean up the text by removing unnecessary symbols
   const cleanText = analysisText
-    .replace(/\*\*/g, "") // Remove **
-    .replace(/\*/g, "") // Remove *
-    .replace(/-\s*/g, "") // Remove - and any following spaces
-    .replace(/<[^>]+>/g, "") // Remove HTML tags (if any)
-    .replace(/\n\s*\n/g, "\n") // Remove extra newlines
-    .trim(); // Trim leading and trailing spaces
+    .replace(/\*\*/g, "")
+    .replace(/\*/g, "")
+    .replace(/-\s*/g, "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\n\s*\n/g, "\n")
+    .trim();
 
-  console.log("Cleaned Text:", cleanText);
-
-  // Extract match percentage
   const matchPercentageMatch = cleanText.match(/Match Percentage:\s*(\d+)%/);
   const matchPercentage = matchPercentageMatch ? parseInt(matchPercentageMatch[1], 10) : 0;
 
-  // Extract missing skills
   const missingSkillsMatch = cleanText.match(/Missing Skills:\s*(.*?)(?=\n|$)/);
   const missingSkills = missingSkillsMatch
-    ? missingSkillsMatch[1]
-        .split(/,\s*/) // Split by comma and optional spaces
-        .map((skill) => skill.trim()) // Trim each skill
+    ? missingSkillsMatch[1].split(/,\s*/).map((s) => s.trim())
     : [];
 
-  // Extract suggestions
   const suggestionsMatch = cleanText.match(/Suggestions:\s*([\s\S]*)/i);
   const suggestions = suggestionsMatch
-    ? suggestionsMatch[1]
-        .split(/\n/) // Split by newline
-        .map((suggestion) => suggestion.trim()) // Trim each suggestion
-        .filter((suggestion) => suggestion.length > 0) // Remove empty lines
+    ? suggestionsMatch[1].split(/\n/).map((s) => s.trim()).filter(Boolean)
     : [];
 
-  console.log("Parsed Results:", { matchPercentage, missingSkills, suggestions });
   return { matchPercentage, missingSkills, suggestions };
 };
 
